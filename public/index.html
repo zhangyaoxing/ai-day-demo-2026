@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Atlas Vector Search in RAG — AI Day Demo</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="app-header__inner">
+        <div class="brand">
+          <span class="brand__mark" aria-hidden="true"></span>
+          <div>
+            <h1 class="brand__title">Atlas Vector Search <span class="brand__sep">×</span> RAG</h1>
+            <p class="brand__sub">One question, three pipelines — MongoDB Atlas + Voyage AI + DeepSeek</p>
+          </div>
+        </div>
+        <span class="tag">AI Day 2026</span>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="ask" aria-labelledby="ask-label">
+        <label id="ask-label" class="ask__label" for="question">Ask Orbital a question</label>
+        <div class="ask__row">
+          <input
+            id="question"
+            class="ask__input"
+            type="text"
+            placeholder="e.g. What does Orbital's Pro plan cost?"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <button id="ask-btn" class="btn btn--primary" type="button">Ask</button>
+        </div>
+        <div class="chips" role="group" aria-label="Sample questions">
+          <button class="chip" type="button">What does Orbital's Pro plan cost and what does it include?</button>
+          <button class="chip" type="button">When was the latest Orbital release, and what did it fix?</button>
+          <button class="chip" type="button">Is Orbital SOC 2 Type II certified, and what else does its compliance cover?</button>
+          <button class="chip" type="button">What is the maximum ingestion rate Orbital supports?</button>
+        </div>
+        <p id="status" class="status" role="status" aria-live="polite"></p>
+      </section>
+
+      <section class="results" id="results" aria-live="polite"></section>
+    </main>
+
+    <footer class="app-footer">
+      <span>MongoDB Atlas Vector Search · Voyage AI · DeepSeek</span>
+      <a href="https://github.com/zhangyaoxing/ai-day-demo-2026" target="_blank" rel="noopener">View on GitHub</a>
+    </footer>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

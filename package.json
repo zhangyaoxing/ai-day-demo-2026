@@ -1,0 +1,19 @@
+{
+  "name": "ai-day-demo-2026",
+  "version": "1.0.0",
+  "description": "Demo: MongoDB Atlas Vector Search in RAG (DeepSeek LLM + Voyage AI embeddings & rerank)",
+  "type": "module",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "seed": "node seed/seed.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "mongodb": "^6.12.0"
+  }
+}
