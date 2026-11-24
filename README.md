@@ -44,7 +44,7 @@ npm start       # → http://localhost:3000
 | `MONGODB_URI` | Atlas connection string | — |
 | `MONGODB_DB` | Database name | `rag_demo` |
 | `MONGODB_COLLECTION` | Collection name | `knowledge_base` |
-| `VOYAGE_BASE_URL` | Voyage API base (rerank) | `https://api.voyageai.com/v1` |
+| `VOYAGE_BASE_URL` | Voyage rerank base. Atlas Model API keys → `https://ai.mongodb.com/v1`; Voyage-platform keys → `https://api.voyageai.com/v1` | `https://ai.mongodb.com/v1` |
 | `VOYAGE_API_KEY` | Voyage API key (rerank) | — |
 | `VOYAGE_RERANK_MODEL` | Rerank model | `rerank-3` |
 | `LLM_BASE_URL` | LLM base (OpenAI-compatible) | `https://api.deepseek.com` |
@@ -78,3 +78,18 @@ DESIGN.md      Full design document
 
 - The frontend has no build step — it is plain HTML/CSS/JS served by Express.
 - `.env` is git-ignored; credentials are never committed.
+
+## Troubleshooting
+
+**`Voyage rerank failed (403): This API key cannot access this endpoint...`**
+
+The key and the endpoint belong to different families:
+
+- **Atlas-created "Model API keys"** work with the MongoDB-hosted endpoint `https://ai.mongodb.com/v1` (and `eu.`/`us.` for geography-scoped keys).
+- **Voyage-platform keys** work with `https://api.voyageai.com/v1`.
+
+Set `VOYAGE_BASE_URL` to match the key you have. If you generated the key in the Atlas UI (*Search & Vector Search → Model API Keys*), use `https://ai.mongodb.com/v1` (or `eu.ai.mongodb.com` / `us.ai.mongodb.com` for a scoped key).
+
+**Port `3000` in use (`EADDRINUSE`)**
+
+Another instance is already running. Stop it (`Ctrl+C` in its terminal) or start on another port: `PORT=3100 npm start`.

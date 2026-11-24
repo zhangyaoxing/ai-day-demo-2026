@@ -210,7 +210,7 @@ Endpoint: `POST {LLM_BASE_URL}/chat/completions` with `Authorization: Bearer <ke
 
 | Setting | Value |
 |---------|-------|
-| `VOYAGE_BASE_URL` | `https://api.voyageai.com/v1` |
+| `VOYAGE_BASE_URL` | `https://ai.mongodb.com/v1` (Atlas Model API key; `eu.`/`us.` if scoped) |
 | `VOYAGE_API_KEY` | user-provided |
 | `VOYAGE_RERANK_MODEL` | `rerank-3` |
 

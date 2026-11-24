@@ -129,20 +129,25 @@ function renderCard(r) {
     r.usage && r.usage.promptTokens != null
       ? `<span class="meta">${r.usage.promptTokens} in / ${r.usage.completionTokens} out tokens</span>`
       : "";
+  const latency = r.latencyMs != null ? `<span class="meta">${r.latencyMs} ms</span>` : "";
   const ctxId = `ctx-${r.mode}`;
   const labelId = `label-${r.mode}`;
+  const answerHtml = r.error
+    ? `<p class="card__error"><strong>Pipeline error.</strong> ${escapeHtml(r.error)}</p>`
+    : renderMarkdown(r.answer);
+  const contexts = Array.isArray(r.context) ? r.context : [];
   return `
     <article class="card${isBest ? " card--best" : ""}" aria-labelledby="${labelId}">
       <div class="card__head">
         <span class="badge badge--${r.mode}" id="${labelId}">${escapeHtml(r.label)}</span>
-        <span class="meta">${r.latencyMs} ms</span>
+        ${latency}
         ${usage}
       </div>
       <p class="card__desc">${escapeHtml(r.description)}</p>
-      <div class="card__answer">${renderMarkdown(r.answer)}</div>
+      <div class="card__answer">${answerHtml}</div>
       <details class="ctx">
-        <summary aria-controls="${ctxId}" aria-expanded="false">Retrieved context (${r.context.length})</summary>
-        <div id="${ctxId}">${renderContext(r.context)}</div>
+        <summary aria-controls="${ctxId}" aria-expanded="false">Retrieved context (${contexts.length})</summary>
+        <div id="${ctxId}">${renderContext(contexts)}</div>
       </details>
     </article>`;
 }
