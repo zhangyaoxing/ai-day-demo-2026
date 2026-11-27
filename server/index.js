@@ -23,10 +23,9 @@ app.get("/health", async (req, res) => {
     status: "ok",
     mongoConnected,
     llmConfigured: Boolean(config.llm.apiKey),
-    voyageConfigured: Boolean(config.voyage.apiKey),
     models: {
       llm: config.llm.model,
-      rerank: config.voyage.rerankModel,
+      rerank: `${config.rerank.model} ($rerank)`,
       embed: "voyage-4 (Atlas autoEmbed)",
     },
   });

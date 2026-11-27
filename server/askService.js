@@ -1,6 +1,5 @@
 import { config } from "./config.js";
-import { vectorSearch } from "./db.js";
-import { rerank } from "./voyageClient.js";
+import { vectorSearch, vectorSearchWithRerank } from "./db.js";
 import { chat } from "./llmClient.js";
 
 const NO_RAG_SYSTEM = `You are a helpful assistant. Answer the user's question directly. If you are not certain about product-specific facts (prices, dates, version numbers, or certifications), say so honestly instead of guessing.`;
@@ -22,7 +21,7 @@ const MODES = {
     mode: "vector-search-rerank",
     label: "Vector Search + Rerank (Voyage 4 + rerank-3)",
     description:
-      "Atlas retrieves 20 candidates, Voyage rerank-3 re-orders the top 5, then DeepSeek answers.",
+      "Atlas retrieves 20 candidates, then $rerank (Voyage rerank-3) keeps the top 5 for DeepSeek.",
   },
 };
 
@@ -74,13 +73,19 @@ async function pipelineVectorSearch(question) {
 
 async function pipelineRerank(question) {
   const started = Date.now();
-  const hits = await vectorSearch(question, { numCandidates: 200, limit: 20 });
-  const candidateTexts = hits.map((h) => h.text);
-  const ranked = await rerank(question, candidateTexts, config.voyage.rerankTopK);
-  const contexts = ranked.map((r) => {
-    const hit = hits[r.index];
-    return { ...toContext(hit), relevanceScore: r.relevance_score, vectorRank: r.index + 1 };
+  const hits = await vectorSearchWithRerank(question, {
+    numCandidates: 200,
+    limit: 20,
+    rerankLimit: config.rerank.topK,
+    model: config.rerank.model,
   });
+  const contexts = hits.map((h) => ({
+    title: h.title,
+    section: h.section,
+    text: h.text,
+    relevanceScore: h.rerankScore,
+    vectorRank: h.vectorRank,
+  }));
   const { content, usage } = await chat([
     { role: "system", content: buildRagSystem(contexts) },
     { role: "user", content: question },

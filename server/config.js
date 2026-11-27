@@ -17,11 +17,9 @@ export const config = {
     collection: str("MONGODB_COLLECTION", "knowledge_base"),
     indexName: str("VECTOR_INDEX_NAME", "vector_index"),
   },
-  voyage: {
-    baseUrl: str("VOYAGE_BASE_URL", "https://api.voyageai.com/v1").replace(/\/+$/, ""),
-    apiKey: str("VOYAGE_API_KEY"),
-    rerankModel: str("VOYAGE_RERANK_MODEL", "rerank-3"),
-    rerankTopK: int("VOYAGE_RERANK_TOP_K", 5),
+  rerank: {
+    model: str("RERANK_MODEL", "rerank-3"),
+    topK: int("RERANK_TOP_K", 5),
   },
   llm: {
     baseUrl: str("LLM_BASE_URL", "https://api.deepseek.com").replace(/\/+$/, ""),

@@ -2,11 +2,11 @@
 
 A web demo that shows, **for the same question**, how an LLM's answer improves as we add retrieval over an internal knowledge base:
 
-| Pipeline | Retrieval | Model |
-|----------|-----------|-------|
+| Pipeline | Retrieval | Rerank / Model |
+|----------|-----------|----------------|
 | A. **LLM only** | none | DeepSeek |
 | B. **Vector Search** | Atlas Vector Search (top 8) | Voyage 4 (Atlas automated embedding) |
-| C. **Vector Search + Rerank** | Atlas (top 20) → rerank top 5 | Voyage 4 + Voyage rerank-3 |
+| C. **Vector Search + Rerank** | Atlas (top 20) → `$rerank` top 5 | Voyage 4 + Voyage rerank-3 |
 
 The demo uses a fictional product, **"Orbital"**, with an internal knowledge base of facts the LLM cannot know (prices, release dates, certifications, hard limits), so the three pipelines produce visibly different answers.
 
@@ -15,22 +15,19 @@ See [DESIGN.md](DESIGN.md) for the full design.
 ## Prerequisites
 
 - Node.js 18+
-- A MongoDB Atlas cluster (M10+), MongoDB 8.0+
+- A MongoDB Atlas cluster (M10+), **MongoDB 9.0+**
 - A [DeepSeek](https://platform.deepseek.com/api_keys) API key
-- A [Voyage AI](https://docs.voyageai.com/docs/api-key-and-installation) API key
 
-### Atlas prerequisites for Automated Embedding
+### Atlas prerequisites
 
-The vector index uses **Atlas Automated Embedding** (`autoEmbed`), so Atlas generates Voyage 4 embeddings for the `text` field automatically. Before seeding:
-
-1. Enable **storage auto-scaling** on your M10+ cluster (required for Automated Embedding).
-2. Configure a **Voyage AI API key in Atlas**: Atlas UI → *Search & Vector Search* → *Model API Keys* (or generate the key directly from Voyage AI).
+- **Automated Embedding** (used by the vector index): enable **storage auto-scaling** on your M10+ cluster and configure a **Voyage AI model API key** in Atlas (*Search & Vector Search → Model API Keys*). Atlas then embeds the `text` field with `voyage-4` automatically.
+- **Native Reranking** (used by pipeline C): in Atlas → *Project Settings* → **Native Reranking** → toggle **On**. Requires MongoDB 9.0+ and an M10+ cluster.
 
 ## Setup
 
 ```bash
 cp .env.example .env
-# edit .env and fill in MONGODB_URI, VOYAGE_API_KEY, and LLM_API_KEY
+# edit .env and fill in MONGODB_URI and LLM_API_KEY
 
 npm install
 npm run seed    # inserts the corpus and creates the autoEmbed vector index
@@ -44,31 +41,30 @@ npm start       # → http://localhost:3000
 | `MONGODB_URI` | Atlas connection string | — |
 | `MONGODB_DB` | Database name | `rag_demo` |
 | `MONGODB_COLLECTION` | Collection name | `knowledge_base` |
-| `VOYAGE_BASE_URL` | Voyage rerank base. Atlas Model API keys → `https://ai.mongodb.com/v1`; Voyage-platform keys → `https://api.voyageai.com/v1` | `https://ai.mongodb.com/v1` |
-| `VOYAGE_API_KEY` | Voyage API key (rerank) | — |
-| `VOYAGE_RERANK_MODEL` | Rerank model | `rerank-3` |
+| `RERANK_MODEL` | Voyage rerank model used by `$rerank` | `rerank-3` |
+| `RERANK_TOP_K` | Chunks kept after rerank | `5` |
 | `LLM_BASE_URL` | LLM base (OpenAI-compatible) | `https://api.deepseek.com` |
 | `LLM_API_KEY` | DeepSeek API key | — |
 | `LLM_MODEL` | DeepSeek model | `deepseek-flash` |
 | `PORT` | HTTP port | `3000` |
 
-> Embeddings are generated **inside Atlas** (model `voyage-4`, set in the index definition), so there is no embedding API key in `.env`. The Voyage key in `.env` is used only for **reranking**.
+> Embedding **and** reranking both run inside Atlas: embeddings via the `autoEmbed` index, reranking via the native `$rerank` stage. There is no Voyage API key in `.env`.
 
 ## How it works
 
 - `POST /api/ask` with `{ "question": "..." }` runs the three pipelines in parallel and returns all three results side-by-side, including retrieved context, scores, latency, and token usage.
-- `GET /health` reports connectivity and which API keys are configured.
+- `GET /health` reports connectivity and the configured models.
 
 ### Pipeline details
 
 - **A — LLM only:** DeepSeek answers with no retrieval.
 - **B — Vector Search:** `$vectorSearch` with the raw question text (Atlas auto-embeds it with Voyage 4), top 8 chunks, then DeepSeek answers.
-- **C — Vector Search + Rerank:** `$vectorSearch` top 20 candidates → Voyage `rerank-3` → top 5 → DeepSeek answers.
+- **C — Vector Search + Rerank:** `$vectorSearch` top 20 candidates → native `$rerank` (Voyage `rerank-3`) → top 5 → DeepSeek answers.
 
 ## Project structure
 
 ```
-server/        Express app, config, DB/LLM/Voyage clients, ask orchestrator
+server/        Express app, config, DB/LLM clients, ask orchestrator
 seed/          Fictional "Orbital" corpus + seed script (creates the index)
 public/        Static frontend (HTML/CSS/JS, Leafygreen-styled, accessible)
 DESIGN.md      Full design document
@@ -81,14 +77,9 @@ DESIGN.md      Full design document
 
 ## Troubleshooting
 
-**`Voyage rerank failed (403): This API key cannot access this endpoint...`**
+**`$rerank is not enabled for ... Enable the $rerank Project Setting`**
 
-The key and the endpoint belong to different families:
-
-- **Atlas-created "Model API keys"** work with the MongoDB-hosted endpoint `https://ai.mongodb.com/v1` (and `eu.`/`us.` for geography-scoped keys).
-- **Voyage-platform keys** work with `https://api.voyageai.com/v1`.
-
-Set `VOYAGE_BASE_URL` to match the key you have. If you generated the key in the Atlas UI (*Search & Vector Search → Model API Keys*), use `https://ai.mongodb.com/v1` (or `eu.ai.mongodb.com` / `us.ai.mongodb.com` for a scoped key).
+Enable **Native Reranking** in Atlas → *Project Settings*. Requires MongoDB 9.0+ and an M10+ cluster.
 
 **Port `3000` in use (`EADDRINUSE`)**
 

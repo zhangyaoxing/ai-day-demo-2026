@@ -2,7 +2,7 @@
 
 **Status:** Design approved — implementation in progress
 **Repo:** `git@github.com:zhangyaoxing/ai-day-demo-2026.git`
-**Stack:** Node.js + Express · MongoDB Atlas Vector Search (Automated Embedding, Voyage 4) · Voyage AI rerank · DeepSeek LLM
+**Stack:** Node.js + Express · MongoDB Atlas Vector Search (Automated Embedding, Voyage 4) · Atlas Native Reranking (`$rerank`) · DeepSeek LLM
 
 ---
 
@@ -14,7 +14,7 @@ Build a web demo that shows, **for the same user question**, how an LLM's answer
 |---|----------|-----------|-----------------|
 | A | **LLM only (no internal data)** | None | Generic, hedged, or fabricated answer about the product |
 | B | **Vector Search (Voyage 4 automated embedding)** | Top-k chunks from Atlas | Grounded answer using the retrieved chunks |
-| C | **Vector Search + Voyage rerank-3** | Top chunks re-ordered by reranker | Most relevant chunk ranked #1; tighter answer |
+| C | **Vector Search + Native Reranking (`$rerank`)** | Top chunks re-ordered by reranker | Most relevant chunk ranked #1; tighter answer |
 
 The demo targets a technical audience (an "AI Day" session), so the UI makes the *retrieved context*, *scores/ordering*, and *latency* visible, not just the final text. **The entire UI is in English.**
 
@@ -71,25 +71,22 @@ flowchart LR
         API[/api/ask]
         SVC[ask service]
         LLM[DeepSeek client]
-        RERANK[Voyage rerank client]
     end
 
     subgraph Cloud
-        MDB[(MongoDB Atlas<br/>knowledge_base<br/>+ autoEmbed index)]
+        MDB[(MongoDB Atlas<br/>knowledge_base<br/>+ autoEmbed index<br/>+ native $rerank)]
         DEEPSEEK[DeepSeek API]
-        VOYAGE[Voyage AI<br/>rerank endpoint]
     end
 
     UI -->|POST question| API
     API --> SVC
     SVC --> LLM --> DEEPSEEK
-    SVC -->|$vectorSearch (text query)| MDB
-    SVC -->|rerank candidates| RERANK --> VOYAGE
+    SVC -->|$vectorSearch / $vectorSearch + $rerank| MDB
 ```
 
 - **No build step** on the frontend: Express serves a static `public/` directory (HTML/CSS/JS) plus one JSON endpoint.
 - The three pipelines run **server-side** and return together, so the UI renders them side-by-side.
-- **Embeddings are generated inside Atlas** (automated embedding). The app never calls an embedding API.
+- **Embeddings and reranking run inside Atlas** (automated embedding + native `$rerank`). The app never calls a Voyage API.
 
 ---
 
@@ -133,7 +130,7 @@ flowchart LR
 ```
 
 - The seed script creates this index via the driver's `createSearchIndex()` and polls until it is `queryable`.
-- **Atlas prerequisites:** MongoDB 8.0+, storage **auto-scaling enabled** (required on M10+), and a **Voyage AI API key configured in Atlas** (Model API Keys). These are documented in the README.
+- **Atlas prerequisites:** MongoDB 9.0+, storage **auto-scaling enabled** (required on M10+), a **Voyage AI model API key configured in Atlas** (for automated embedding), and **Native Reranking enabled** (Project Settings, for pipeline C). These are documented in the README.
 
 ---
 
@@ -169,20 +166,30 @@ collection.aggregate([
 ])
 ```
 
-### 5.3 Pipeline C — Vector Search + Voyage rerank-3
+### 5.3 Pipeline C — Vector Search + Native Reranking (`$rerank`)
 
 1. `$vectorSearch` with a **larger candidate pool** → top 20 (`numCandidates: 200`, `limit: 20`).
-2. Rerank the 20 candidates with Voyage `rerank-3` (`top_k: 5`).
-3. Feed the top 5 re-ordered chunks into DeepSeek.
+2. Reorder the candidates in-pipeline with Atlas' native `$rerank` (Voyage `rerank-3`).
+3. Keep the top 5 re-ordered chunks and feed them into DeepSeek.
 
 ```js
-// Voyage rerank
-POST {VOYAGE_BASE_URL}/rerank {
-  query: question,
-  documents: candidateTexts,    // the 20 retrieved chunk texts
-  model: "rerank-3",
-  top_k: 5
-}
+collection.aggregate([
+  { $vectorSearch: {
+      index: "vector_index",
+      path: "text",
+      query: question,
+      numCandidates: 200,
+      limit: 20
+  }},
+  { $project: { _id: 0, docId: 1, title: 1, section: 1, text: 1,
+                vectorScore: { $meta: "vectorSearchScore" } } },
+  { $setWindowFields: { sortBy: { vectorScore: -1 },
+                        output: { vectorRank: { $documentNumber: {} } } } },
+  { $rerank: { model: "rerank-3", query: { text: question },
+               path: "text", numDocsToRerank: 20 } },
+  { $addFields: { rerankScore: { $meta: "score" } } },
+  { $limit: 5 }
+])
 ```
 
 **Why C beats B:** B orders chunks by vector similarity alone, so a semantically-adjacent distractor (e.g., the `industry-blog` chunk about "pricing models") can crowd out the exact `pricing` chunk. Rerank is a cross-encoder that jointly compares query↔document, so it reliably pushes the *precise* chunk to #1.
@@ -206,15 +213,15 @@ Endpoint: `POST {LLM_BASE_URL}/chat/completions` with `Authorization: Bearer <ke
 - Model `voyage-4` (1024-dim) is set **in the index definition**, not in the app.
 - Billing and the API key are managed **in Atlas** (Model API Keys).
 
-### 6.3 Rerank — Voyage `rerank-3` (REST)
+### 6.3 Rerank — Atlas Native Reranking (`$rerank`)
 
 | Setting | Value |
 |---------|-------|
-| `VOYAGE_BASE_URL` | `https://ai.mongodb.com/v1` (Atlas Model API key; `eu.`/`us.` if scoped) |
-| `VOYAGE_API_KEY` | user-provided |
-| `VOYAGE_RERANK_MODEL` | `rerank-3` |
+| `RERANK_MODEL` | `rerank-3` (alternatives: `rerank-3-lite`, `rerank-2.5`) |
+| `RERANK_TOP_K` | `5` |
 
-Endpoint: `POST {VOYAGE_BASE_URL}/rerank`.
+- Rerank runs **inside the aggregation** as the `$rerank` stage; the app makes no separate Voyage HTTP call.
+- Requires MongoDB 9.0+, M10+, and **Native Reranking enabled** in Atlas Project Settings. Billing is handled by Atlas.
 
 ---
 
@@ -248,7 +255,7 @@ Response (all three pipelines):
     },
     {
       "mode": "vector-search-rerank",
-      "label": "Vector Search + Rerank (Voyage 4 + rerank-3)",
+      "label": "Vector Search + Rerank (Voyage 4 + $rerank)",
       "answer": "...",
       "context": [ { "title": "Orbital Pricing", "section": "Pro plan", "text": "...", "relevanceScore": 0.94 } ],
       "latencyMs": 1280,
@@ -260,7 +267,7 @@ Response (all three pipelines):
 
 ### `GET /health`
 
-Returns connectivity status (MongoDB reachable; DeepSeek/Voyage keys present) for pre-flight checks.
+Returns connectivity status (MongoDB reachable; DeepSeek key present; rerank model) for pre-flight checks.
 
 ---
 
@@ -318,8 +325,7 @@ ai-day-demo-2026/
 ├── server/
 │   ├── index.js              # Express app entry
 │   ├── config.js             # env loading + validation
-│   ├── db.js                 # Mongo client + $vectorSearch helper
-│   ├── voyageClient.js       # rerank only
+│   ├── db.js                 # Mongo client + $vectorSearch / $rerank helpers
 │   ├── llmClient.js          # DeepSeek (OpenAI-compatible) chat
 │   └── askService.js         # orchestrates the three pipelines
 ├── seed/
@@ -343,10 +349,9 @@ MONGODB_URI=mongodb+srv://<user>:<password>@cluster0.wy1z6.mongodb.net/?retryWri
 MONGODB_DB=rag_demo
 MONGODB_COLLECTION=knowledge_base
 
-# --- Voyage AI (rerank only; embeddings are generated inside Atlas) ---
-VOYAGE_BASE_URL=https://api.voyageai.com/v1
-VOYAGE_API_KEY=
-VOYAGE_RERANK_MODEL=rerank-3
+# --- Rerank: Atlas Native Reranking ($rerank) ---
+RERANK_MODEL=rerank-3
+RERANK_TOP_K=5
 
 # --- LLM: DeepSeek (OpenAI-compatible) ---
 LLM_BASE_URL=https://api.deepseek.com
@@ -363,7 +368,7 @@ PORT=3000
 
 ## 11. Setup & demo flow (in README)
 
-1. Configure a **Voyage AI API key in Atlas** (Search & Vector Search → Model API Keys) for automated embedding, and enable storage auto-scaling (M10+).
+1. In Atlas, configure a **Voyage AI model API key** (for automated embedding), enable storage auto-scaling (M10+), and enable **Native Reranking** (Project Settings).
 2. `cp .env.example .env`, fill in credentials.
 3. `npm install`
 4. `npm run seed` — inserts the corpus and creates the `autoEmbed` vector index, then polls until ready.
@@ -377,7 +382,7 @@ PORT=3000
 | # | Question | Decision |
 |---|----------|----------|
 | 1 | LLM provider | **DeepSeek** (`deepseek-flash`), OpenAI-compatible, key in `.env` |
-| 2 | Voyage models | **`voyage-4`** (embed, via Atlas autoEmbed) + **`rerank-3`** (rerank) |
+| 2 | Voyage models | **`voyage-4`** (embed, via Atlas autoEmbed) + **`rerank-3`** (rerank, via native `$rerank`) |
 | 3 | UI language | **English** |
 | 4 | Embedding approach | **Atlas Automated Embedding** (`autoEmbed` index); no external embedding in the app |
 
