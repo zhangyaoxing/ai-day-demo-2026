@@ -52,10 +52,11 @@ Each entry is a small, self-contained text chunk (≈150–300 tokens). Atlas ge
 
 ### 2.3 Curated demo questions (pre-filled; users can type their own)
 
-1. **"What does Orbital's Pro plan cost and what does it include?"**
-2. **"When was the latest Orbital release, and what did it fix?"**
-3. **"Is Orbital SOC 2 Type II certified, and what else does its compliance cover?"**
-4. **"What is the maximum ingestion rate Orbital supports?"**
+1. **"What are Orbital's pricing tiers and what does each include?"** — the clearest rerank showcase: Vector Search ranks "Support tiers" #1, rerank promotes "Plan overview" to #1, and the answer becomes per-tier specific.
+2. **"What does Orbital's Pro plan cost and what does it include?"**
+3. **"When was the latest Orbital release, and what did it fix?"**
+4. **"Is Orbital SOC 2 Type II certified, and what else does its compliance cover?"**
+5. **"What is the maximum ingestion rate Orbital supports?"**
 
 ---
 
