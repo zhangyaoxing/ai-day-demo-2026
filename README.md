@@ -68,7 +68,10 @@ server/        Express app, config, DB/LLM clients, ask orchestrator
 seed/          Fictional "Orbital" corpus + seed script (creates the index)
 public/        Static frontend (HTML/CSS/JS, Leafygreen-styled, accessible)
 DESIGN.md      Full design document
+STRUCTURE.md   File-by-file guide
 ```
+
+See [STRUCTURE.md](STRUCTURE.md) for a file-by-file guide.
 
 ## Notes
 

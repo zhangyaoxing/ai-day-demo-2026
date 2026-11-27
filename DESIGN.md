@@ -337,6 +337,8 @@ ai-day-demo-2026/
     └── app.js
 ```
 
+See [STRUCTURE.md](STRUCTURE.md) for a file-by-file guide.
+
 Dependencies: `express`, `mongodb`, `dotenv`. Everything else uses the built-in `fetch` (Node 18+).
 
 ---
